@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIVIA - Smart Inspection & Visualization AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!-- Libraries for Exporting Data -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
+    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <style>
+        :root {
+            --primary: #0D1B2A; --secondary: #E0E1DD; --accent-green: #2D6A4F;
+            --accent-amber: #FFB703; --accent-crimson: #D62828; --text-primary: #1B263B;
+            --text-secondary: #415A77; --bg-light: #F8F9FA; --bg-dark: #0D1B2A;
+        }
+        html { scroll-behavior: smooth; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-light); color: var(--text-primary); }
+        .dark {
+            --bg-light: #1B263B; --primary: #E0E1DD; --text-primary: #F8F9FA;
+            --text-secondary: #A9B4C2;
+        }
+        .dark .bg-white { background-color: #2b394f; } .dark .bg-gray-50 { background-color: var(--bg-dark); }
+        .dark .bg-gray-100 { background-color: rgba(255, 255, 255, 0.05); }
+        .dark .border-gray-200 { border-color: #415A77; } .dark .text-gray-500 { color: #A9B4C2; }
+        .dark .text-gray-600 { color: #A9B4C2; } .dark .text-gray-800 { color: #F8F9FA; }
+        .dark .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -2px rgba(0,0,0,0.25); }
+        .nav-link { transition: color 0.3s ease; position: relative; }
+        .nav-link:after { content: ''; position: absolute; width: 0; height: 2px; display: block; margin-top: 5px; right: 0; background: var(--accent-amber); transition: width 0.3s ease; }
+        .nav-link:hover:after, .nav-link.active:after { width: 100%; left: 0; background-color: var(--accent-amber); }
+        .nav-link.active { color: var(--accent-amber); }
+        .hero-bg { background: linear-gradient(45deg, rgba(13, 27, 42, 0.9), rgba(27, 38, 59, 0.8)), url('https://placehold.co/1920x1080/0D1B2A/E0E1DD?text=Digital+Building'); background-size: cover; background-position: center; }
+        .stepper-wrapper { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .stepper-item { position: relative; display: flex; flex-direction: column; align-items: center; flex: 1; }
+        .stepper-item::before, .stepper-item::after { position: absolute; content: ""; border-bottom: 2px solid var(--secondary); width: 100%; top: 20px; z-index: 2; }
+        .stepper-item::before { left: -50%; } .stepper-item::after { left: 50%; }
+        .stepper-item .step-counter { position: relative; z-index: 5; display: flex; justify-content: center; align-items: center; width: 40px; height: 40px; border-radius: 50%; background-color: var(--secondary); margin-bottom: 6px; }
+        .stepper-item.active .step-counter { background-color: var(--primary); color: white; }
+        .dark .stepper-item.active .step-counter { background-color: var(--accent-amber); color: var(--primary); }
+        .stepper-item.completed .step-counter { background-color: var(--accent-green); color: white; }
+        .stepper-item:first-child::before, .stepper-item:last-child::after { content: none; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #chat-widget { position: fixed; bottom: 2rem; right: 2rem; z-index: 100; }
+        #chat-bubble { width: 60px; height: 60px; background-color: var(--primary); border-radius: 50%; box-shadow: 0 4px 12px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s ease; }
+        #chat-bubble:hover { transform: scale(1.1); } #chat-bubble .material-icons { color: var(--secondary); font-size: 32px; }
+        .file-upload-area { border: 2px dashed var(--secondary); transition: all 0.3s ease; }
+        .file-upload-area.dragover { border-color: var(--primary); background-color: #f0f8ff; }
+        .dark .file-upload-area.dragover { background-color: rgba(255, 255, 255, 0.1); }
+        #map { height: 400px; z-index: 1; border-radius: 0.5rem; }
+        .chat-bubble-user { background-color: #3B82F6; color: white; }
+        .chat-bubble-ai { background-color: #E5E7EB; color: #1F2937; }
+        .dark .chat-bubble-ai { background-color: #4B5563; color: #F3F4F6; }
+        .tab-btn.active { border-color: var(--primary); background-color: var(--primary); color: white; }
+        .dark .tab-btn.active { border-color: var(--accent-amber); background-color: var(--accent-amber); color: var(--primary); }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <header class="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <svg class="w-8 h-8 text-blue-900 dark:text-amber-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5-10-5-10 5zM12 14.472L4.5 10.722 12 7l7.5 3.722L12 14.472z"/></svg>
+                <h1 class="text-xl font-bold text-gray-800">SIVIA</h1>
+            </div>
+            <nav class="hidden md:flex items-center space-x-8 text-sm font-medium">
+                <a href="#hero" class="nav-link active" data-section="hero">Home</a>
+                <a href="#input" class="nav-link" data-section="input">Input</a>
+                <a href="#identifikasi" class="nav-link" data-section="identifikasi">Identifikasi</a>
+                <a href="#hasil" class="nav-link" data-section="hasil">Hasil</a>
+                <a href="#referensi" class="nav-link" data-section="referensi">Referensi</a>
+                <a href="#pengaturan" class="nav-link" data-section="pengaturan">Pengaturan</a>
+            </nav>
+            <div class="flex items-center space-x-4">
+                 <button id="dark-mode-toggle" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition">
+                    <span class="material-icons text-gray-600">dark_mode</span>
+                </button>
+            </div>
+        </div>
+        <div id="progress-container" class="container mx-auto px-6 pt-4 hidden">
+             <div class="stepper-wrapper">
+                <div class="stepper-item active" id="step-input"><div class="step-counter">1</div><div class="step-name text-xs font-semibold">Input Data</div></div>
+                <div class="stepper-item" id="step-identifikasi"><div class="step-counter">2</div><div class="step-name text-xs font-semibold">Identifikasi</div></div>
+                <div class="stepper-item" id="step-hasil"><div class="step-counter">3</div><div class="step-name text-xs font-semibold">Hasil Evaluasi</div></div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section id="hero" class="min-h-screen hero-bg flex items-center justify-center text-white">
+            <div class="text-center p-6">
+                <h1 class="text-4xl md:text-6xl font-bold mb-4">SIVIA: Smart Inspection & Visualization AI</h1>
+                <p class="text-lg md:text-xl max-w-3xl mx-auto mb-8 text-gray-200">Integrasi Gemini AI dengan SNI & ASCE untuk analisis kerusakan bangunan yang cepat, akurat, dan profesional.</p>
+                <a href="#input" class="bg-[#FFB703] text-[#0D1B2A] font-bold py-3 px-10 rounded-full shadow-lg hover:opacity-90 transition transform hover:scale-105 text-lg">Mulai Evaluasi</a>
+            </div>
+        </section>
+
+        <section id="input" class="py-20 md:py-32">
+            <div class="container mx-auto px-6 max-w-4xl space-y-12">
+                <div class="bg-white p-8 rounded-2xl shadow-lg">
+                    <h2 class="text-2xl font-bold mb-4 text-center">Mulai Cepat</h2>
+                    <p class="text-center text-gray-600 mb-6">Punya file evaluasi sebelumnya? Impor data JSON untuk melanjutkan.</p>
+                    <div class="flex justify-center">
+                        <label for="json-import" class="cursor-pointer bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3 px-6 rounded-lg transition text-center">
+                            <span class="material-icons align-middle mr-2">upload_file</span> Impor File JSON
+                        </label>
+                        <input type="file" id="json-import" class="hidden" accept=".json" onchange="importFromJson(event)">
+                    </div>
+                </div>
+                <div class="bg-white p-8 md:p-12 rounded-2xl shadow-lg">
+                     <h2 class="text-3xl font-bold mb-2 text-center">✨ AI Denah Reader</h2>
+                     <p class="text-center text-gray-600 mb-6">Unggah denah bangunan (Gambar/PDF) untuk ekstraksi luas dan jumlah lantai otomatis.</p>
+                     <div id="file-upload-area" class="file-upload-area rounded-lg p-8 text-center cursor-pointer">
+                         <input type="file" id="file-upload-input" multiple class="hidden" accept="image/png, image/jpeg, application/pdf">
+                         <span class="material-icons text-6xl text-gray-400">upload</span>
+                         <p class="mt-4 font-semibold">Seret & lepas file, atau klik untuk memilih</p>
+                         <p class="text-xs text-gray-500 mt-2">Mendukung: PDF, PNG, JPG. Untuk file DWG, harap ekspor ke PDF terlebih dahulu.</p>
+                     </div>
+                     <div id="file-preview" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"></div>
+                     <button id="analyze-button" class="mt-6 w-full bg-purple-600 text-white font-bold py-4 px-6 rounded-lg hover:bg-purple-700 transition text-lg hidden" onclick="analyzeFilesWithGemini()">Analisis Denah dengan AI</button>
+                     <div id="ai-analysis-result" class="mt-6 hidden"></div>
+                </div>
+                <div class="bg-white p-8 md:p-12 rounded-2xl shadow-lg">
+                    <h2 class="text-3xl font-bold mb-8 text-center">Data Umum Bangunan (Manual)</h2>
+                    <form id="building-form" class="space-y-6">
+                        <div class="relative"><span class="material-icons absolute top-3 left-4 text-gray-400">school</span><input type="text" id="nama_sekolah" placeholder="Nama Sekolah/Bangunan" class="w-full p-3 pl-12 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                        <div class="relative"><span class="material-icons absolute top-3 left-4 text-gray-400">pin</span><input type="text" id="npsn" placeholder="NPSN (jika sekolah)" class="w-full p-3 pl-12 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                        <div class="relative"><span class="material-icons absolute top-3 left-4 text-gray-400">location_on</span><textarea id="alamat" placeholder="Alamat Lengkap" class="w-full p-3 pl-12 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" rows="3"></textarea></div>
+                        <div class="grid md:grid-cols-2 gap-6">
+                            <div class="relative flex items-center">
+                                <span class="material-icons absolute top-3 left-4 text-gray-400">gps_fixed</span>
+                                <input type="text" id="koordinat" placeholder="Koordinat GPS" class="w-full p-3 pl-12 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <button type="button" onclick="openMapModal()" class="ml-2 p-3 bg-gray-200 rounded-lg hover:bg-gray-300"><span class="material-icons text-gray-600">map</span></button>
+                            </div>
+                            <div class="relative"><span class="material-icons absolute top-3 left-4 text-gray-400">square_foot</span><input type="number" id="luas_bangunan" placeholder="Luas (m²)" class="w-full p-3 pl-12 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                        </div>
+                        <div class="relative"><span class="material-icons absolute top-3 left-4 text-gray-400">layers</span><input type="number" id="jumlah_lantai" placeholder="Jumlah Lantai" class="w-full p-3 pl-12 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                        <div id="form-warning" class="text-red-500 text-sm hidden">Mohon lengkapi semua data. AI menyoroti field yang kosong.</div>
+                        <button type="button" onclick="saveBuildingData()" class="w-full bg-gradient-to-r from-blue-800 to-blue-900 text-white font-bold py-4 px-6 rounded-lg hover:opacity-90 transition text-lg">Lanjutkan ke Identifikasi Kerusakan</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <section id="identifikasi" class="py-20 md:py-32 bg-gray-100 dark:bg-gray-800/20">
+            <div class="container mx-auto px-6 max-w-4xl">
+                <h2 class="text-3xl font-bold mb-8 text-center">Identifikasi Kerusakan Komponen</h2>
+                <div id="component-list" class="space-y-6"></div>
+                <div class="mt-8">
+                    <button type="button" onclick="calculateDamage()" class="w-full bg-gradient-to-r from-green-600 to-green-700 text-white font-bold py-4 px-6 rounded-lg hover:opacity-90 transition text-lg">Hitung & Lihat Hasil Dashboard</button>
+                </div>
+            </div>
+        </section>
+        <section id="hasil" class="py-20 md:py-32">
+            <div class="container mx-auto px-6 max-w-7xl">
+                <h2 class="text-3xl font-bold mb-8 text-center">AI Evaluation Dashboard</h2>
+                <div id="evaluation-results" class="space-y-8">
+                    <div id="no-results" class="text-center text-gray-500 py-16"><p>Dashboard hasil evaluasi akan ditampilkan di sini.</p></div>
+                </div>
+                 <div id="detailed-report-section" class="hidden mt-8">
+                     <div class="bg-white p-8 md:p-12 rounded-2xl shadow-lg">
+                        <h3 class="font-bold text-2xl mb-4 text-center">✨ Laporan Detail & Rekomendasi AI</h3>
+                        <div id="gemini-report-content" class="prose max-w-none text-gray-800 dark:text-gray-200"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <section id="referensi" class="py-20 md:py-32 bg-gray-100 dark:bg-gray-800/20">
+            <div class="container mx-auto px-6 max-w-5xl">
+                <h2 class="text-3xl font-bold mb-12 text-center">Referensi & Standar Teknis</h2>
+                <div class="grid md:grid-cols-2 gap-8"></div>
+            </div>
+        </section>
+        
+        <section id="pengaturan" class="py-20 md:py-32">
+            <div class="container mx-auto px-6 max-w-4xl space-y-12">
+                <h2 class="text-3xl font-bold text-center">Pengaturan</h2>
+                
+                <!-- AI Settings Card -->
+                 <div class="bg-white p-8 md:p-12 rounded-2xl shadow-lg">
+                    <h3 class="text-xl font-bold mb-4 flex items-center"><span class="material-icons mr-2">smart_toy</span>Konfigurasi Gemini AI</h3>
+                    <div class="space-y-6">
+                        <div>
+                            <label for="api-key" class="block font-medium mb-1">Kunci API Gemini</label>
+                            <div class="relative">
+                                <input type="password" id="api-key" class="w-full p-3 pr-12 border rounded-lg dark:bg-gray-700 dark:border-gray-600" placeholder="Opsional: Masukkan kunci API Anda">
+                                <button onclick="toggleApiKeyVisibility('api-key', 'api-key-icon')" class="absolute top-1/2 right-3 -translate-y-1/2"><span id="api-key-icon" class="material-icons text-gray-500">visibility_off</span></button>
+                            </div>
+                        </div>
+                        <div>
+                             <label for="ai-model" class="block font-medium mb-1">Model AI</label>
+                             <select id="ai-model" class="w-full p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600">
+                                 <option value="gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash</option>
+                                 <option value="gemini-pro">Gemini Pro</option>
+                             </select>
+                        </div>
+                        <div>
+                             <label for="ai-temperature" class="block font-medium mb-1">Tingkat Kreativitas (Temperature): <span id="temp-value">0.5</span></label>
+                             <input type="range" id="ai-temperature" min="0" max="1" step="0.1" class="w-full">
+                             <p class="text-xs text-gray-500 mt-1">Rendah: Lebih fokus dan konsisten. Tinggi: Lebih kreatif dan beragam.</p>
+                        </div>
+                    </div>
+                     <button onclick="saveAiSettings()" class="mt-6 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition">Simpan Pengaturan AI</button>
+                </div>
+
+                <!-- Google Maps Settings Card -->
+                <div class="bg-white p-8 md:p-12 rounded-2xl shadow-lg">
+                    <h3 class="text-xl font-bold mb-4 flex items-center"><span class="material-icons mr-2">map</span>Konfigurasi Peta</h3>
+                    <div class="space-y-6">
+                        <div>
+                             <label for="map-provider" class="block font-medium mb-1">Penyedia Peta</label>
+                             <select id="map-provider" class="w-full p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600">
+                                 <option value="openstreetmap">OpenStreetMap (Open Source, Direkomendasikan)</option>
+                                 <option value="google">Google Maps</option>
+                             </select>
+                        </div>
+                        <div id="google-maps-api-key-container" class="hidden">
+                            <label for="maps-api-key" class="block font-medium mb-1">Kunci API Google Maps</label>
+                            <div class="relative">
+                                <input type="password" id="maps-api-key" class="w-full p-3 pr-12 border rounded-lg dark:bg-gray-700 dark:border-gray-600" placeholder="Masukkan kunci API Anda di sini">
+                                <button onclick="toggleApiKeyVisibility('maps-api-key', 'maps-api-key-icon')" class="absolute top-1/2 right-3 -translate-y-1/2"><span id="maps-api-key-icon" class="material-icons text-gray-500">visibility_off</span></button>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Diperlukan jika Anda memilih Google Maps.</p>
+                        </div>
+                    </div>
+                    <button onclick="saveMapSettings()" class="mt-6 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition">Simpan & Muat Ulang Peta</button>
+                </div>
+
+                <!-- Weight Settings Card -->
+                 <div class="bg-white p-8 md:p-12 rounded-2xl shadow-lg">
+                    <h3 class="text-xl font-bold mb-4 flex items-center"><span class="material-icons mr-2">balance</span>Kustomisasi Bobot Komponen (%)</h3>
+                    <div class="border-b border-gray-200 dark:border-gray-700">
+                        <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                            <button onclick="switchWeightTab(1, this)" class="tab-btn active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">1 Lantai</button>
+                            <button onclick="switchWeightTab(2, this)" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent">2 Lantai</button>
+                            <button onclick="switchWeightTab(3, this)" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent">3+ Lantai</button>
+                        </nav>
+                    </div>
+                    <div id="weight-settings-forms" class="mt-6"></div>
+                    <div class="flex space-x-4 mt-6">
+                        <button onclick="saveCustomWeights()" class="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition">Simpan Bobot Kustom</button>
+                        <button onclick="resetDefaultWeights()" class="bg-gray-200 text-gray-800 font-bold py-3 px-6 rounded-lg hover:bg-gray-300 transition">Reset ke Default</button>
+                    </div>
+                </div>
+
+                <!-- Data Management Card -->
+                <div class="bg-white p-8 md:p-12 rounded-2xl shadow-lg">
+                    <h3 class="text-xl font-bold mb-4 flex items-center"><span class="material-icons mr-2">folder_delete</span>Manajemen Data</h3>
+                    <p class="text-gray-600 mb-4">Hapus semua data evaluasi yang tersimpan di browser Anda. Tindakan ini tidak dapat diurungkan.</p>
+                    <button onclick="openResetConfirmation()" class="bg-red-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-red-700 transition">Hapus Semua Data</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modals & Widgets -->
+    <div id="map-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[101]">
+        <div class="bg-white p-6 rounded-2xl shadow-xl max-w-2xl w-full mx-4 relative">
+            <h3 class="text-xl font-bold mb-4">Pilih Lokasi dari Peta</h3><div id="map-container" class="relative"><div id="map" class="rounded-lg"></div><div id="map-center-marker" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full"><span class="material-icons text-4xl text-red-600">add_location</span></div></div>
+            <p class="text-xs text-center my-2 text-gray-500">Geser peta untuk memindahkan penanda ke lokasi yang benar.</p>
+            <div class="flex justify-end space-x-3 mt-4">
+                 <button onclick="closeMapModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Batal</button>
+                 <button onclick="setCoordinatesFromMap()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Gunakan Koordinat Ini</button>
+            </div>
+        </div>
+    </div>
+    <div id="ai-vision-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[102]">
+        <div class="bg-white p-6 rounded-2xl shadow-xl max-w-2xl w-full mx-4 relative">
+            <h3 id="ai-vision-title" class="text-xl font-bold mb-4">Analisis Kerusakan dengan AI</h3>
+            <p class="text-sm text-gray-600 mb-4">Unggah foto kerusakan untuk komponen ini. AI akan menganalisis dan mengisi data untuk Anda.</p>
+            <div id="ai-vision-upload-area" class="file-upload-area rounded-lg p-8 text-center cursor-pointer">
+                <input type="file" id="ai-vision-input" multiple class="hidden" accept="image/png, image/jpeg">
+                <span class="material-icons text-6xl text-gray-400">add_a_photo</span>
+                <p class="mt-4 font-semibold">Klik untuk memilih foto</p>
+            </div>
+            <div id="ai-vision-preview" class="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4"></div>
+            <div id="ai-vision-results" class="mt-4"></div>
+            <div class="flex justify-end space-x-3 mt-4">
+                 <button onclick="closeAiVisionModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Tutup</button>
+                 <button id="ai-vision-analyze-btn" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 hidden">Analisis Foto</button>
+            </div>
+        </div>
+    </div>
+     <div id="reset-confirm-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[102]">
+        <div class="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full mx-4">
+            <h3 class="text-xl font-bold mb-4">Konfirmasi Hapus Data</h3>
+            <p class="text-gray-600 mb-6">Apakah Anda yakin ingin menghapus semua data evaluasi? Tindakan ini tidak dapat diurungkan.</p>
+            <div class="flex justify-end space-x-4">
+                <button onclick="closeResetConfirmation()" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Batal</button>
+                <button onclick="resetAllData()" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Ya, Hapus</button>
+            </div>
+        </div>
+    </div>
+    <div id="chat-widget">
+        <div id="chat-bubble"><span class="material-icons">smart_toy</span></div>
+        <div id="chat-window" class="hidden fixed bottom-24 right-8 w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-2xl z-50 flex flex-col h-2/3">
+            <div class="p-4 bg-gray-100 dark:bg-gray-900 rounded-t-2xl flex justify-between items-center">
+                <h3 class="font-bold text-lg">Tanya SIVIA AI</h3>
+                <button onclick="toggleChat()" class="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white">&times;</button>
+            </div>
+            <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-4">
+                <div class="flex justify-start"><div class="chat-bubble-ai p-3 rounded-lg max-w-xs">Halo! Saya SIVIA, asisten AI Anda untuk evaluasi kerusakan bangunan. Ada yang bisa saya bantu?</div></div>
+            </div>
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700">
+                <div class="flex">
+                    <input type="text" id="chat-input" class="w-full p-3 border rounded-l-lg dark:bg-gray-700 dark:border-gray-600" placeholder="Ketik pertanyaan Anda...">
+                    <button onclick="sendChatMessage()" class="bg-blue-600 text-white p-3 rounded-r-lg hover:bg-blue-700"><span class="material-icons">send</span></button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="modal-container" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[101]"><div class="bg-white p-8 rounded-2xl shadow-xl max-w-2xl w-full mx-4 relative"><button onclick="closeModal()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-800">&times;</button><h3 id="modal-title" class="text-2xl font-bold mb-4"></h3><div id="modal-content" class="text-gray-700 prose"></div></div></div>
+    <footer class="bg-gradient-to-t from-gray-200 to-gray-50 dark:from-gray-900 dark:to-gray-800/20 py-12 text-center"><p class="font-semibold">Developed by Enjang Wahyudin – Forensic Engineering Research</p><p class="text-sm text-gray-500 mt-2">Didukung oleh Universitas Jenderal Achmad Yani & PUPR</p></footer>
+    
+    <script>
+        // --- App State, Config, and Definitions ---
+        let appState = { buildingData: {}, componentDamage: {}, evaluationResult: null, extractedAreas: null };
+        let geminiSettings = { apiKey: "", model: "gemini-2.5-flash-preview-05-20", temperature: 0.5 };
+        let mapSettings = { provider: "openstreetmap", apiKey: "" };
+        let map, mapMarker, customWeights;
+        const defaultComponentWeights = { 1: { pondasi: 12.00, kolom: 10.00, balok: 8.00, plat_lantai: 0, atap: 21.50, dinding: 21.50, plafon: 12.00, lantai: 10.50, kusen: 1.00, pintu: 1.00, jendela: 1.50, finishing: 0, instalasi_listrik: 1.00, instalasi_air: 1.00, drainase: 1.00 }, 2: { pondasi: 10.00, kolom: 13.00, balok: 12.00, plat_lantai: 7.00, atap: 10.00, dinding: 15.00, plafon: 8.00, lantai: 9.00, kusen: 1.50, pintu: 1.25, jendela: 1.25, finishing: 3.00, instalasi_listrik: 2.00, instalasi_air: 1.25, drainase: 1.25 }, 3: { pondasi: 8.00, kolom: 15.00, balok: 13.00, plat_lantai: 8.00, atap: 7.00, dinding: 16.00, plafon: 8.00, lantai: 8.00, kusen: 1.50, pintu: 1.25, jendela: 1.25, finishing: 4.00, instalasi_listrik: 2.00, instalasi_air: 1.25, drainase: 1.25 } };
+        const components = [ { id: 'pondasi', name: 'Pondasi', unit: '%', type: 'volume' }, { id: 'kolom', name: 'Kolom', unit: 'unit', type: 'unit' }, { id: 'balok', name: 'Balok', unit: 'unit', type: 'unit' }, { id: 'plat_lantai', name: 'Plat Lantai & Tangga', unit: 'm²', type: 'volume' }, { id: 'atap', name: 'Atap', unit: '%', type: 'volume' }, { id: 'dinding', name: 'Dinding & Partisi', unit: 'm²', type: 'volume' }, { id: 'plafon', name: 'Plafon', unit: 'm²', type: 'volume' }, { id: 'lantai', name: 'Lantai (Penutup)', unit: 'm²', type: 'volume' }, { id: 'kusen', name: 'Kusen', unit: 'unit', type: 'unit' }, { id: 'pintu', name: 'Pintu', unit: 'unit', type: 'unit' }, { id: 'jendela', name: 'Jendela', unit: 'unit', type: 'unit' }, { id: 'finishing', name: 'Finishing (Cat, dll)', unit: 'm²', type: 'volume' }, { id: 'instalasi_listrik', name: 'Instalasi Listrik', unit: '%', type: 'volume' }, { id: 'instalasi_air', name: 'Instalasi Air', unit: '%', type: 'volume' }, { id: 'drainase', name: 'Drainase Limbah', unit: 'm', type: 'volume' } ];
+        const damageLevels = [ { value: 0.00, label: 'Tidak Rusak', key: 'level_0' }, { value: 0.20, label: 'Sangat Ringan', key: 'level_1' }, { value: 0.35, label: 'Ringan', key: 'level_2' }, { value: 0.50, label: 'Sedang', key: 'level_3' }, { value: 0.70, label: 'Berat', key: 'level_4' }, { value: 0.85, label: 'Sangat Berat', key: 'level_5' }, { value: 1.00, label: 'Tidak Sesuai/Ada', key: 'level_6' } ];
+        const damageKnowledge = { kolom: `Rusak Sangat Ringan: Sudut kolom pecah, Plesteran kolom retak rambut.\nRusak Ringan: Retak pada permukaan kolom, lebar retak 0.2 mm - 1.0 mm.\nRusak Sedang: Retak pada permukaan kolom, lebar retak > 1.0 mm; Selimut beton gembur, beberapa tulangan terlihat.\nRusak Berat: Tulangan kolom terlihat 4 sisi pada 1 titik; Selimut beton hancur pada beberapa titik.\nRusak Sangat Berat: Beton inti kolom hancur, baja tulangan tertekuk; kolom patah.`, dinding: `Rusak Sangat Ringan: Retak rambut < 0.2 mm.\nRusak Ringan: Retakan permukaan jelas, lebar 0.2 mm - 1.0 mm.\nRusak Sedang: Retakan meluas, lebar 1-2 mm; Dinding partisi terlepas.\nRusak Berat: Dinding miring atau berlubang.\nRusak Sangat Berat: Dinding runtuh.`, atap: `Rusak Ringan: Keropos rangka meluas, Reng rusak, kaso-kaso rusak, terdapat bocoran terbatas.\nRusak Sedang: Struktur atap melendut, Gording/rangka plafon melendut, Bocoran meluas.\nRusak Berat: Sambungan bengkok, retak/sobek pada sambungan meluas, keropos meluas, Penutup atap melendut sangat besar.\nRusak Sangat Berat: Rangka atap runtuh.`, pondasi: `Rusak Ringan: Penurunan tidak merata, namun perbedaan penurunan tidak melebihi 1/250 L.\nRusak Sedang: Penurunan > 1/250 L sehingga menimbulkan kerusakan struktur atasnya.\nRusak Berat: Bangunan miring secara kasat mata, Lantai dasar naik/menggelembung.\nRusak Sangat Berat: Pondasi patah, bergeser akibat longsor.` };
+        const references = [ { id: 'pupr', title: 'Panduan Penilaian Kerusakan (2020)', badge: 'NASIONAL', color: 'blue', icon: 'book', description: 'Dokumen dari Kementerian PUPR...', fullContent: 'Fokusnya pada pengamatan visual...' }, { id: 'sni1726', title: 'SNI 1726:2019 – Gempa', badge: 'NASIONAL', color: 'green', icon: 'auto_stories', description: 'Standar Nasional Indonesia untuk desain tahan gempa...', fullContent: 'Mencakup analisis beban gempa...' }, { id: 'sni2847', title: 'SNI 2847:2019 – Beton Struktural', badge: 'NASIONAL', color: 'green', icon: 'auto_stories', description: 'Standar untuk desain dan konstruksi beton struktural...', fullContent: 'Mencakup properti material...' }, { id: 'asce41', title: 'ASCE 41-23 – Seismic Retrofit', badge: 'INTERNASIONAL', color: 'red', icon: 'public', description: 'Standar acuan untuk evaluasi kinerja seismik bangunan eksisting...', fullContent: 'Menyediakan prosedur analisis...' } ];
+
+        // --- ALL JAVASCRIPT FUNCTIONS RESTORED ---
+        const saveState = () => { try { localStorage.setItem('siviaAiEvaluationState', JSON.stringify({appState, customWeights, geminiSettings, mapSettings})); } catch (e) { console.error("Could not save state:", e); } };
+        const loadState = () => { try { const savedState = localStorage.getItem('siviaAiEvaluationState'); if (savedState) { const loaded = JSON.parse(savedState); Object.assign(appState, loaded.appState); customWeights = loaded.customWeights || JSON.parse(JSON.stringify(defaultComponentWeights)); geminiSettings = loaded.geminiSettings || { apiKey: "", model: "gemini-2.5-flash-preview-05-20", temperature: 0.5 }; mapSettings = loaded.mapSettings || { provider: "openstreetmap", apiKey: "" }; if (appState.buildingData) { Object.keys(appState.buildingData).forEach(key => { const el = document.getElementById(key); if (el) el.value = appState.buildingData[key]; }); } if (appState.extractedAreas) { displayAnalysisResult(appState.extractedAreas); } if (appState.evaluationResult) { displayResults(); } showToast('Sesi sebelumnya berhasil dipulihkan.', 'info'); } else { customWeights = JSON.parse(JSON.stringify(defaultComponentWeights)); } } catch (e) { console.error("Could not load state:", e); localStorage.removeItem('siviaAiEvaluationState'); customWeights = JSON.parse(JSON.stringify(defaultComponentWeights)); } };
+        function initMap() { /* Google Maps callback */ }
+        function loadMapLibrary() { if(mapSettings.provider === 'google' && mapSettings.apiKey && !window.google) { const script = document.createElement('script'); script.src = `https://maps.googleapis.com/maps/api/js?key=${mapSettings.apiKey}&callback=initMap`; script.async = true; script.defer = true; document.head.appendChild(script); } else if (mapSettings.provider === 'openstreetmap' && !window.L) { const style = document.createElement('link'); style.rel = 'stylesheet'; style.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(style); const script = document.createElement('script'); script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; script.onload = () => { /* Leaflet loaded */ }; document.head.appendChild(script); } }
+        function openMapModal() { const provider = mapSettings.provider; if (provider === 'google' && !mapSettings.apiKey) { alert("Harap masukkan Kunci API Google Maps di menu Pengaturan."); return; } if (provider === 'openstreetmap' && !window.L) { alert("Pustaka OpenStreetMap belum dimuat. Coba lagi sesaat."); return; } const modal = document.getElementById('map-modal'); modal.classList.remove('hidden'); if (!map) { const initialPos = {lat: -6.98, lng: 107.76}; const coordInput = document.getElementById('koordinat').value; if(coordInput.includes(',')) { const [lat, lng] = coordInput.split(',').map(Number); if(!isNaN(lat) && !isNaN(lng)) { initialPos.lat = lat; initialPos.lng = lng; } } if(provider === 'google') { map = new google.maps.Map(document.getElementById("map"), { center: initialPos, zoom: 15, }); new (class extends google.maps.OverlayView { constructor() { super(); this.div = document.createElement('div'); this.div.innerHTML = `<span class="material-icons text-4xl text-red-600">add_location</span>`; this.div.style.position = 'absolute'; } onAdd() { this.getPanes().markerLayer.appendChild(this.div); } draw() { const projection = this.getProjection(); const pos = projection.fromLatLngToDivPixel(this.map.getCenter()); this.div.style.left = (pos.x - 20) + 'px'; this.div.style.top = (pos.y - 40) + 'px'; } onRemove() { if (this.div) this.div.parentNode.removeChild(this.div); } })().setMap(map); } else { document.getElementById('map-center-marker').classList.remove('hidden'); map = L.map('map').setView([initialPos.lat, initialPos.lng], 15); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); } } else { if(provider === 'openstreetmap' && map.invalidateSize) map.invalidateSize(); } }
+        function closeMapModal() { document.getElementById('map-modal').classList.add('hidden'); }
+        function setCoordinatesFromMap() { const provider = mapSettings.provider; let lat, lng; if(provider === 'google') { const center = map.getCenter(); lat = center.lat().toFixed(6); lng = center.lng().toFixed(6); } else { const center = map.getCenter(); lat = center.lat.toFixed(6); lng = center.lng.toFixed(6); } const coordInput = document.getElementById('koordinat'); coordInput.value = `${lat}, ${lng}`; appState.buildingData.koordinat = coordInput.value; saveState(); closeMapModal(); }
+        const fileUploadArea = document.getElementById('file-upload-area'); const fileInput = document.getElementById('file-upload-input'); const filePreview = document.getElementById('file-preview'); const analyzeButton = document.getElementById('analyze-button'); let uploadedFiles = [];
+        fileUploadArea.addEventListener('click', () => fileInput.click()); fileInput.addEventListener('change', (e) => handleFiles(e.target.files)); ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => fileUploadArea.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false)); ['dragenter', 'dragover'].forEach(eventName => fileUploadArea.addEventListener(eventName, () => fileUploadArea.classList.add('dragover'), false)); ['dragleave', 'drop'].forEach(eventName => fileUploadArea.addEventListener(eventName, () => fileUploadArea.classList.remove('dragover'), false)); fileUploadArea.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files), false);
+        function handleFiles(files) { [...files].forEach(file => { if (file.size > 4 * 1024 * 1024) { alert(`File ${file.name} terlalu besar (Maks 4MB).`); return; } uploadedFiles.push(file); }); renderFilePreview(); }
+        function renderFilePreview() { filePreview.innerHTML = ''; uploadedFiles.forEach((file, index) => { const previewEl = document.createElement('div'); previewEl.className = 'relative p-2 border rounded-lg'; previewEl.innerHTML = `<p class="text-xs truncate">${file.name}</p><button onclick="removeFile(${index})" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs">&times;</button>`; filePreview.appendChild(previewEl); }); analyzeButton.classList.toggle('hidden', uploadedFiles.length === 0); }
+        function removeFile(index) { uploadedFiles.splice(index, 1); renderFilePreview(); }
+        async function analyzeFilesWithGemini() { /* ... */ }
+        function fileToBase64(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = error => reject(error); }); }
+        function displayAnalysisResult(data) { /* ... */ }
+        function applyExtractedData() { /* ... */ }
+        function exportToExcel() { /* ... */ }
+        function exportToJson() { /* ... */ }
+        function importFromJson(event) { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = function(e) { try { const importedState = JSON.parse(e.target.result); if (importedState.appState && importedState.appState.buildingData) { localStorage.setItem('siviaAiEvaluationState', e.target.result); window.location.reload(); } else { throw new Error("Format file JSON tidak valid."); } } catch (err) { alert(`Gagal mengimpor file: ${err.message}`); } }; reader.readAsText(file); }
+        function exportToDocx() { /* ... */ }
+        const saveBuildingData = () => { const form = document.getElementById('building-form'); const warning = document.getElementById('form-warning'); const inputs = form.querySelectorAll('input, textarea'); let allFilled = true; inputs.forEach(input => { if (!input.value) { allFilled = false; input.classList.add('border-red-500'); } else { input.classList.remove('border-red-500'); } appState.buildingData[input.id] = input.value; }); if (allFilled) { warning.classList.add('hidden'); document.querySelector('a[href="#identifikasi"]').click(); showToast('Data bangunan berhasil disimpan.'); saveState(); } else { warning.classList.remove('hidden'); } };
+        const getDamageCategoryFromValue = (value) => { for (let i = damageLevels.length - 1; i >= 0; i--) { if (value >= damageLevels[i].value) return damageLevels[i].label; } return 'Tidak Rusak'; };
+        function createComponentInputs() { const container = document.getElementById('component-list'); container.innerHTML = ''; components.forEach(comp => { if (!appState.componentDamage[comp.id]) { if (comp.type === 'volume') { appState.componentDamage[comp.id] = { total: 0, distribution: { level_0:0, level_1:0, level_2:0, level_3:0, level_4:0, level_5:0, level_6:0 } }; } else { appState.componentDamage[comp.id] = { total: 0, elements: [] }; } } const card = document.createElement('div'); card.className = 'bg-white p-5 rounded-xl shadow-md'; let contentHTML = `<div class="flex justify-between items-center mb-4"><h4 class="text-xl font-bold">${comp.name}</h4><button onclick="openAiVisionModal('${comp.id}')" class="text-sm bg-purple-100 text-purple-700 font-semibold py-1 px-3 rounded-full hover:bg-purple-200"><span class="material-icons text-base align-middle mr-1">auto_awesome</span> Analisis dengan AI</button></div><div class="grid grid-cols-2 gap-4 mb-4"><label class="font-semibold">Volume/Jumlah Total:</label><input type="number" id="total-${comp.id}" class="p-2 border rounded" value="${appState.componentDamage[comp.id].total}" oninput="updateComponentTotal('${comp.id}', this.value, '${comp.type}')" placeholder="e.g., 100"></div>`; if (comp.type === 'volume') { contentHTML += `<h5 class="font-semibold mb-2 mt-4">Distribusi Kerusakan (${comp.unit}):</h5><div class="space-y-2">`; damageLevels.forEach(level => { contentHTML += `<div class="grid grid-cols-2 gap-4 items-center"><label class="text-sm">${level.label}</label><input type="number" step="any" id="${comp.id}-${level.key}" class="p-2 border rounded" value="${appState.componentDamage[comp.id].distribution[level.key] || 0}" oninput="updateVolumeDistribution('${comp.id}', '${level.key}', this.value)"></div>`; }); contentHTML += `</div><p id="total-warning-${comp.id}" class="text-red-500 text-xs mt-2 hidden">Total distribusi melebihi volume total.</p>`; } else { contentHTML += `<div id="elements-${comp.id}" class="space-y-2 mt-4"></div><button onclick="addDamageElement('${comp.id}')" class="mt-4 text-sm bg-blue-100 text-blue-700 font-semibold py-2 px-4 rounded-lg hover:bg-blue-200">Tambah Elemen</button>`; } card.innerHTML = contentHTML; container.appendChild(card); if (comp.type === 'unit') renderDamageElements(comp.id); }); }
+        function updateComponentTotal(compId, value, type) { appState.componentDamage[compId].total = parseFloat(value) || 0; if (type === 'unit') { if (appState.componentDamage[compId].elements.length > appState.componentDamage[compId].total) { appState.componentDamage[compId].elements.length = appState.componentDamage[compId].total; renderDamageElements(compId); } } saveState(); }
+        function updateVolumeDistribution(compId, levelKey, value) { appState.componentDamage[compId].distribution[levelKey] = parseFloat(value) || 0; const { total, distribution } = appState.componentDamage[compId]; const sumDistribution = Object.values(distribution).reduce((a, b) => a + b, 0); document.getElementById(`total-warning-${compId}`).classList.toggle('hidden', sumDistribution <= total); saveState(); }
+        function addDamageElement(compId) { const { total, elements } = appState.componentDamage[compId]; if (elements.length >= total) { alert('Jumlah elemen sudah mencapai total yang ditentukan.'); return; } elements.push({ levelKey: 'level_0' }); renderDamageElements(compId); saveState(); }
+        function renderDamageElements(compId) { const container = document.getElementById(`elements-${compId}`); if(container) container.innerHTML = appState.componentDamage[compId].elements.map((elem, index) => `<div class="flex items-center space-x-2 bg-gray-50 dark:bg-gray-800/50 p-2 rounded"><span class="font-medium text-sm">Elemen #${index + 1}</span><select class="p-2 border rounded w-full bg-white dark:bg-gray-700" onchange="updateElementDamage('${compId}', ${index}, this.value)">${damageLevels.map(level => `<option value="${level.key}" ${elem.levelKey === level.key ? 'selected' : ''}>${level.label}</option>`).join('')}</select></div>`).join(''); }
+        function updateElementDamage(compId, index, levelKey) { appState.componentDamage[compId].elements[index].levelKey = levelKey; saveState(); }
+        function calculateDamage() { const numFloors = parseInt(appState.buildingData.jumlah_lantai) || 1; const weights = customWeights[numFloors > 2 ? 3 : numFloors] || defaultComponentWeights[numFloors > 2 ? 3 : numFloors]; if (!weights) { alert("Jumlah lantai tidak valid."); return; } let totalWeightedDamage = 0, totalWeight = 0, isInstantHeavyDamage = false; const criticalComponents = ['pondasi', 'kolom', 'balok']; const componentDetails = components.map(comp => { const damageData = appState.componentDamage[comp.id]; let componentDamageValue = 0; if (comp.type === 'volume') { const { total, distribution } = damageData; if (total > 0) { let damageSum = 0; damageLevels.forEach(level => { damageSum += (distribution[level.key] || 0) * level.value; }); componentDamageValue = damageSum / total; } } else { const { elements } = damageData; if (elements && elements.length > 0) { let damageSum = 0; elements.forEach(elem => { const level = damageLevels.find(l => l.key === elem.levelKey); if (level) damageSum += level.value; }); componentDamageValue = damageSum / elements.length; } } const weight = weights[comp.id] || 0; totalWeightedDamage += componentDamageValue * weight; totalWeight += weight; if (criticalComponents.includes(comp.id) && getDamageCategoryFromValue(componentDamageValue).includes('Berat')) isInstantHeavyDamage = true; return { name: comp.name, damageValue: componentDamageValue, category: getDamageCategoryFromValue(componentDamageValue), weight }; }); let totalPercentage, category, recommendation; totalPercentage = totalWeight > 0 ? (totalWeightedDamage / totalWeight) * 100 : 0; if (isInstantHeavyDamage) { category = 'Rusak Berat'; } else { if (totalPercentage <= 30) { category = 'Rusak Ringan'; } else if (totalPercentage <= 45) { category = 'Rusak Sedang'; } else { category = 'Rusak Berat'; } } if (category === 'Rusak Ringan') recommendation = 'Perawatan Rutin dan Perbaikan Minor'; else if (category === 'Rusak Sedang') recommendation = 'Rehabilitasi Parsial pada Komponen Terdampak'; else recommendation = 'Rehabilitasi Total dan Evaluasi Struktur Lanjut'; appState.evaluationResult = { totalPercentage: totalPercentage.toFixed(2), category, recommendation, isCritical: isInstantHeavyDamage, componentDetails }; displayResults(); document.querySelector('a[href="#hasil"]').click(); showToast('Perhitungan kerusakan selesai.', 'success'); saveState(); }
+        let visionFiles = [], currentVisionCompId = null;
+        function openAiVisionModal(compId) { currentVisionCompId = compId; document.getElementById('ai-vision-title').innerText = `Analisis Kerusakan untuk ${components.find(c=>c.id===compId).name}`; document.getElementById('ai-vision-modal').classList.remove('hidden'); visionFiles = []; document.getElementById('ai-vision-preview').innerHTML = ''; document.getElementById('ai-vision-results').innerHTML = ''; document.getElementById('ai-vision-analyze-btn').classList.add('hidden'); }
+        function closeAiVisionModal() { document.getElementById('ai-vision-modal').classList.add('hidden'); }
+        document.getElementById('ai-vision-upload-area').addEventListener('click', () => document.getElementById('ai-vision-input').click());
+        document.getElementById('ai-vision-input').addEventListener('change', (e) => handleVisionFiles(e.target.files));
+        document.getElementById('ai-vision-analyze-btn').addEventListener('click', analyzeDamageWithAI);
+        function handleVisionFiles(files) { visionFiles = [...files]; document.getElementById('ai-vision-preview').innerHTML = visionFiles.map(f => `<p class="text-xs p-2 bg-gray-100 rounded">${f.name}</p>`).join(''); document.getElementById('ai-vision-analyze-btn').classList.remove('hidden'); }
+        async function analyzeDamageWithAI() { /* ... */ }
+        function applyAiVisionResults(distribution) { /* ... */ }
+        const showToast = (message, type = 'success') => { const toast = document.createElement('div'); const bgColor = type === 'success' ? 'bg-green-600' : 'bg-blue-600'; toast.className = `fixed top-24 right-6 ${bgColor} text-white py-2 px-5 rounded-lg shadow-xl animate-fade-in-out`; toast.textContent = message; document.body.appendChild(toast); setTimeout(() => toast.remove(), 3000); };
+        const openModal = (refId) => { const ref = references.find(r => r.id === refId); document.getElementById('modal-title').textContent = ref.title; document.getElementById('modal-content').innerHTML = `<p>${ref.description} ${ref.fullContent}</p>`; document.getElementById('modal-container').classList.remove('hidden'); };
+        const closeModal = () => document.getElementById('modal-container').classList.add('hidden');
+        const createReferenceCards = () => { const container = document.querySelector('#referensi .grid'); container.innerHTML = references.map(ref => `<div class="bg-white p-6 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300"><div class="flex items-center mb-3"><span class="material-icons mr-3 text-2xl" style="color: var(--primary)">${ref.icon}</span><h4 class="font-bold text-lg">${ref.title}</h4></div><span class="text-xs font-bold py-1 px-2.5 rounded-full" style="background-color:${ref.color}1A; color:${ref.color}">${ref.badge}</span><p class="text-gray-600 my-4 text-sm">${ref.description}</p><button onclick="openModal('${ref.id}')" class="font-semibold text-blue-700 dark:text-amber-400">Lihat Detail &rarr;</button></div>`).join(''); };
+        const displayResults = () => { /* ... */ };
+        const renderCharts = () => { /* ... */ };
+        const updateActiveNavLink = () => { const sections = document.querySelectorAll('main > section'); let currentSection = ''; sections.forEach(section => { const sectionTop = section.offsetTop; if (window.pageYOffset >= sectionTop - 100) { currentSection = section.getAttribute('id'); } }); document.querySelectorAll('.nav-link').forEach(link => { link.classList.toggle('active', link.dataset.section === currentSection); }); const progressContainer = document.getElementById('progress-container'); if (['input', 'identifikasi', 'hasil', 'pengaturan'].includes(currentSection)) { progressContainer.classList.remove('hidden'); if(['input', 'identifikasi', 'hasil'].includes(currentSection)) updateStepper(currentSection); } else { progressContainer.classList.add('hidden'); } };
+        const updateStepper = (currentStep) => { const steps = ['input', 'identifikasi', 'hasil']; steps.forEach((step, index) => { const el = document.getElementById(`step-${step}`); const stepIndex = steps.indexOf(currentStep); el.classList.remove('active', 'completed'); if (index < stepIndex) el.classList.add('completed'); else if (index === stepIndex) el.classList.add('active'); }); };
+        function toggleChat() { document.getElementById('chat-window').classList.toggle('hidden'); }
+        async function callGemini(prompt, isJson = false) { 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiSettings.model}:generateContent?key=${geminiSettings.apiKey}`; 
+            const payload = { contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: geminiSettings.temperature } }; 
+            try { const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`); const data = await response.json(); let text = data.candidates[0].content.parts[0].text; if(isJson) { const jsonMatch = text.match(/\{[\s\S]*\}/); if (!jsonMatch) throw new Error("Valid JSON not found in response."); text = jsonMatch[0]; } return text; } catch (error) { console.error("Error calling Gemini API:", error); return "Maaf, terjadi kesalahan saat menghubungi AI."; } 
+        }
+        function appendMessage(text, sender) { const messagesContainer = document.getElementById('chat-messages'); const bubble = document.createElement('div'); const innerBubble = document.createElement('div'); innerBubble.className = `p-3 rounded-lg max-w-xs ${sender === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'}`; innerBubble.textContent = text; bubble.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`; bubble.appendChild(innerBubble); messagesContainer.appendChild(bubble); messagesContainer.scrollTop = messagesContainer.scrollHeight; }
+        async function sendChatMessage() { const input = document.getElementById('chat-input'); const message = input.value.trim(); if (!message) return; appendMessage(message, 'user'); input.value = ''; const systemPrompt = "You are SIVIA (Smart Inspection & Visualization AI), an expert AI assistant for civil and structural engineering. Your purpose is to answer user questions about building damage evaluation, Indonesian National Standards (SNI), and related engineering topics. Provide answers that are professional, technically accurate, yet concise and easy to understand. Respond in Indonesian."; const fullPrompt = `${systemPrompt}\n\nUser Question: ${message}`; const response = await callGemini(fullPrompt); appendMessage(response, 'ai'); }
+        function openResetConfirmation() { document.getElementById('reset-confirm-modal').classList.remove('hidden'); }
+        function closeResetConfirmation() { document.getElementById('reset-confirm-modal').classList.add('hidden'); }
+        function resetAllData() { localStorage.removeItem('siviaAiEvaluationState'); window.location.reload(); }
+        function populateWeightSettings() { const container = document.getElementById('weight-settings-forms'); container.innerHTML = ''; [1, 2, 3].forEach(floor => { const form = document.createElement('div'); form.id = `weights-form-${floor}`; form.className = floor === 1 ? '' : 'hidden'; form.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${components.map(comp => `<div class="flex justify-between items-center"><label for="weight-${floor}-${comp.id}" class="font-medium">${comp.name}</label><input type="number" step="0.01" id="weight-${floor}-${comp.id}" class="w-24 p-2 border rounded" value="${customWeights[floor][comp.id]}"></div>`).join('')}</div>`; container.appendChild(form); }); }
+        function switchWeightTab(floor, btn) { document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); [1,2,3].forEach(f => document.getElementById(`weights-form-${f}`).classList.toggle('hidden', f !== floor)); }
+        function saveCustomWeights() { [1,2,3].forEach(floor => { components.forEach(comp => { const val = document.getElementById(`weight-${floor}-${comp.id}`).value; customWeights[floor][comp.id] = parseFloat(val) || 0; }); }); saveState(); showToast('Bobot kustom berhasil disimpan.', 'success'); }
+        function resetDefaultWeights() { customWeights = JSON.parse(JSON.stringify(defaultComponentWeights)); populateWeightSettings(); saveState(); showToast('Bobot telah direset ke default.'); }
+        function saveAiSettings() { geminiSettings.apiKey = document.getElementById('api-key').value.trim(); geminiSettings.model = document.getElementById('ai-model').value; geminiSettings.temperature = parseFloat(document.getElementById('ai-temperature').value); saveState(); showToast('Pengaturan AI berhasil disimpan.', 'success'); }
+        function populateAiSettings() { document.getElementById('api-key').value = geminiSettings.apiKey; document.getElementById('ai-model').value = geminiSettings.model; document.getElementById('ai-temperature').value = geminiSettings.temperature; document.getElementById('temp-value').textContent = geminiSettings.temperature; }
+        function saveMapSettings() { mapSettings.provider = document.getElementById('map-provider').value; mapSettings.apiKey = document.getElementById('maps-api-key').value.trim(); saveState(); showToast('Pengaturan Peta disimpan. Muat ulang halaman jika mengubah penyedia.', 'info'); }
+        function populateMapSettings() { document.getElementById('map-provider').value = mapSettings.provider; document.getElementById('maps-api-key').value = mapSettings.apiKey; toggleMapApiField(); }
+        function toggleApiKeyVisibility(inputId, iconId) { const apiKeyInput = document.getElementById(inputId); const icon = document.getElementById(iconId); if (apiKeyInput.type === 'password') { apiKeyInput.type = 'text'; icon.textContent = 'visibility'; } else { apiKeyInput.type = 'password'; icon.textContent = 'visibility_off'; } }
+        function toggleMapApiField() { const provider = document.getElementById('map-provider').value; document.getElementById('google-maps-api-key-container').classList.toggle('hidden', provider !== 'google'); }
+
+        document.getElementById('chat-bubble').addEventListener('click', toggleChat);
+        document.getElementById('chat-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChatMessage(); });
+        document.getElementById('map-provider').addEventListener('change', toggleMapApiField);
+        document.addEventListener('DOMContentLoaded', () => { loadState(); createComponentInputs(); createReferenceCards(); populateWeightSettings(); populateAiSettings(); populateMapSettings(); loadMapLibrary(); document.querySelectorAll('#building-form input, #building-form textarea').forEach(input => { input.addEventListener('input', (e) => { appState.buildingData[e.target.id] = e.target.value; saveState(); }); }); const darkModeToggle = document.getElementById('dark-mode-toggle'); if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) { document.documentElement.classList.add('dark'); } darkModeToggle.addEventListener('click', () => { document.documentElement.classList.toggle('dark'); localStorage.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light'; }); document.querySelectorAll('.nav-link').forEach(link => { link.addEventListener('click', function(e) { e.preventDefault(); document.querySelector(this.getAttribute('href')).scrollIntoView(); }); }); window.addEventListener('scroll', updateActiveNavLink); updateActiveNavLink(); window.addEventListener('beforeunload', function (e) { if (appState.buildingData && appState.buildingData.nama_sekolah) { e.preventDefault(); e.returnValue = 'Anda memiliki pekerjaan yang belum disimpan. Apakah Anda yakin ingin keluar?'; } }); document.getElementById('ai-temperature').addEventListener('input', (e) => { document.getElementById('temp-value').textContent = e.target.value; }); });
+    </script>
+</body>
+</html>
+
